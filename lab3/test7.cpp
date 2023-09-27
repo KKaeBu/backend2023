@@ -19,6 +19,15 @@ int main()
     struct sockaddr_in sin;
     memset(&sin, 0, sizeof(sin));
     sin.sin_family = AF_INET;
+    sin.sin_addr.s_addr = INADDR_ANY;
+    sin.sin_port = htons(10000 + 343);
+    if (bind(s, (struct sockaddr *)&sin, sizeof(sin)) < 0) {
+        cerr << strerror(errno) << endl;
+        return 0;
+    }
+
+    memset(&sin, 0, sizeof(sin));
+    sin.sin_family = AF_INET;
     sin.sin_port = htons(20000 + 343);
     sin.sin_addr.s_addr = inet_addr("127.0.0.1");
 
@@ -31,6 +40,14 @@ int main()
     numBytes = recvfrom(s, buf2, sizeof(buf2), 0, (struct sockaddr *)&sin, &sin_size);
     cout << "Recevied: " << numBytes << endl;
     cout << "From " << inet_ntoa(sin.sin_addr) << endl;
+
+    memset(&sin, 0, sizeof(sin));
+    sin_size = sizeof(sin);
+    int result = getsockname(s, (struct sockaddr *)&sin, &sin_size);
+    if(result == 0) {
+        cout << "My addr: " << inet_ntoa(sin.sin_addr) << endl;
+        cout << "My port: " << ntohs(sin.sin_port) << endl;
+    }
 
     close(s);
     return 0;

@@ -32,6 +32,14 @@ int main()
     cout << "Recevied: " << numBytes << endl;
     cout << "From " << inet_ntoa(sin.sin_addr) << endl;
 
+    memset(&sin, 0, sizeof(sin));
+    sin_size = sizeof(sin);
+    int result = getsockname(s, (struct sockaddr *)&sin, &sin_size);
+    if(result == 0) {
+        cout << "My addr: " << inet_ntoa(sin.sin_addr) << endl;
+        cout << "My port: " << ntohs(sin.sin_port) << endl;
+    }
+
     close(s);
     return 0;
 }
