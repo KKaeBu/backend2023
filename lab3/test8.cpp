@@ -27,6 +27,7 @@ int main()
 
     while (1) {
         char buf2[65536];
+        string b;
 
         memset(&sin, 0, sizeof(sin));
         socklen_t sin_size = sizeof(sin);
@@ -34,7 +35,7 @@ int main()
         cout << "Recevied in server: " << numBytes << endl;
         cout << "From in server " << inet_ntoa(sin.sin_addr) << endl;
 
-        numBytes = sendto(s, buf2, strlen(buf2), 0, (struct sockaddr *)&sin, sizeof(sin));
+        numBytes = sendto(s, buf2, numBytes, 0, (struct sockaddr *)&sin, sizeof(sin));
         cout << "Sent in server: " << numBytes << endl;
 
         memset(buf2, 0, sizeof(buf2));
