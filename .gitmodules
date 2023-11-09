@@ -1,0 +1,3 @@
+[submodule "chat_clinet"]
+	path = chat_clinet
+	url = https://github.com/mjubackend/chat_client
