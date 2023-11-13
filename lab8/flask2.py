@@ -4,9 +4,9 @@ app = Flask(__name__)
 
 @app.route('/')
 def hello_world():
-    return 'Hello, World!' + 1
+    return 'Hello, World!'
 
-@app.route('/bad')
+@app.route('/bad', methods=['GET', 'POST'])
 def bad_world():
     return 'Bad World!'
 
