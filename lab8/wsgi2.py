@@ -2,7 +2,7 @@ import json
 
 def application(environ, start_response):
     print(environ['REQUEST_METHOD'])
-    print(environ['PATH'])
+    print(environ['PATH_INFO'])
 
     body_bytes = environ['wsgi.input'].read()
     body_str = body_bytes.decode('utf-8')
