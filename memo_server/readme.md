@@ -2,8 +2,6 @@
 
 memo.py 는 Python3 Flask 로 되어있습니다.
 
-**본 과제는 실습 서버가 아니라 본인 컴퓨터에서 작업하기 바랍니다.**
-
 # 필요 패키지 설치
 
 필요한 패키지 목록은 `requirements.txt` 에 있습니다. `pip` 을 이용해 필요 패키지를 설치합니다.
@@ -15,8 +13,9 @@ $ pip install -r requirements.txt
 
 # 실행 예시
 
-일반적인 flask 실행 방식대로 실행하면 됩니다.
+## Local 접근
 
+local 환경에서 접근하려면 다음과 같이 app을 실행시킵니다.
 ```
 $ flask --app memo run --port 포트 번호
 ```
@@ -24,103 +23,152 @@ $ flask --app memo run --port 포트 번호
 ```
 $ python3 memo.py
 ```
+이후 브라우저의 url상에
+```
+http://localhost:8000
+```
+로 접근하면 확인이 가능합니다.
 
-후자의 경우 memo.py 안에서 port 번호 8000번을 기본값으로 사용하고 있으니 필요시 수정하세요.
+## AWS ELB 접근
 
-# 동작 설명
+AWS의 ELB를 사용해 확인하려면
+```
+http://60172216-lb-358060437.ap-northeast-2.elb.amazonaws.com/memo/
+```
+로 접근하면 확인이 가능합니다.
 
-## index.html 읽어 오기
+# 코드 설명
 
-memo.py 를 실행하고 브라우저에서 `http://localhost:포트번호` 처럼 접근할 경우 `index.html` 을 읽어오게 됩니다.
+## `@app.route('/')`
 
-이는 `Flask` 의 `template` 기능을 사용하고 있으며, 사용되고 있는 `index.html` 의 template file 은 `templates/index.html` 에 위치하고 있습니다.
+```
+    if userId:
+        if rdb.exists(f'user:{userId}'):
+            print(rdb.get(f'user:{userId}'))
+            user_json = rdb.get(f'user:{userId}')
+            user = dict(json.loads(user_json))
+            name = user['name']
+```
+쿠키를 통해 이전에 사용자의 방문 여부를 확인하고 DB에 사용자 데이터를 유무를 검색합니다.
+만일 있다면 DB에 저장된 사용자 이름으로 name 값을 지정합니다.
 
-이 template 은 현재 `name` 이라는 변수만을 외부 변수 값으로 입력 받습니다. 해당 변수는 유저가 현재 로그인 중인지를 알려주는 용도로 사용되며 `index.html` 은 그 값의 유무에 따라 다른 내용을 보여줍니다.
+## `@app.route('/oauth2')`
 
-## index.html 이 호출하는 REST API 들
+사용된 Redirect URI는 다음과 같습니다.
 
-`index.html` 은 `memo.py` 에 다음 API 들을 호출합니다.
+* `Redirect URI` : `http://localhost:8000/oauth2` (in local)
+* `Redirect URI` : `http://<ec2 instance public ip>:8000/memo/oauth2` (in aws ec2)
 
-* `GET /login` : authorization code 를 얻어오는 URL 로 redirect 시켜줄 것을 요청합니다. (아래 설명)
 
-* `GET /memo` : 현재 로그인한 유저가 작성한 메모 목록을 JSON 으로 얻어옵니다. 결과 JSON 은 다음과 같은 형태가 되어야 합니다.
+1. `state & code` : naver api로부터 authorization 정보를 받아온다.
   ```
-  {"memos": ["메모내용1", "메모내용2", ...]}
+    code = request.args.get('code')
+    state = request.args.get('state')
   ```
 
-* `POST /memo` : 새 메모를 추가합니다. HTTP 요청은 다음과 같은 JSON 을 전송해야 됩니다.
+2. `access token` : naver api로부터 access token을 받아온다. (state, code 필요)
   ```
-  {"text": "메모내용"}
+    token_params={
+        'grant_type': 'authorization_code',
+        'client_id': naver_client_id,
+        'client_secret': naver_client_secret,
+        'code': code,
+        'state': state,
+    }
+    urlencoded = urllib.parse.urlencode(token_params)
+    token_url = f"https://nid.naver.com/oauth2.0/token?{urlencoded}"
+    token_resp = requests.get(token_url)
+    ...
+    access_token = token_resp.json()['access_token']
   ```
-  새 메모가 생성된 경우 memo.py 는 `200 OK` 를 반환합니다.
+  
+  3. `profile` : access token을 사용해 유저 데이터를 받아온다. (유저의 이름을 포함)
+  ```
+    profile_headers = {
+        'Authorization': f'Bearer {access_token}'    
+    }
+    profile_url = "https://openapi.naver.com/v1/nid/me"
+    profile_resp = requests.get(profile_url, headers=profile_headers)
+    ...
+    profile = profile_resp.json()['response']
+  ```
+
+  4. `DB save` : user 고유 id와 이름(name)을 저장합니다. (json 으로 저장, redis 사용)
+  ```
+  user = {
+      'id': user_id,
+      'name': user_name    
+}
+  #db저장
+  user_serialized_json = json.dumps(user).encode('utf-8')
+  rdb.set(f'user:{user_id}', user_serialized_json)
+  ```
+
+  주의. `redirect 설정` : 위 과정을 마친 후 돌아가는 redirect 주소 설정 (local -> '/', ec2 -> '/memo')
+  ```
+  response = redirect('/') # in local
+  response = redirect('/memo') # in aws elb ec2
+  ```
+
+## `@app.route('/memo', methods=['GET'])`
+
+  주의. `redirect 설정` : 비 로그인시 첫 페이지로 이동
+  ```
+  if not userId:
+    return redirect('/') # in local
+    return redirect('/memo') # in aws elb ec2
+  ```
+  
+  DB에서 해당하는 user의 메모를 불러옵니다. (결과를 result에 저장)
+  ```
+    if rdb.exists(f'user:{userId}:memos'):
+        memo_list = rdb.lrange(f'user:{userId}:memos', 0, -1)
+        for memo in memo_list:
+            m = dict(json.loads(memo))
+            result.insert(0, m)
+  ```
+  lrange를 사용해서 redis에 value에 list로 저장되있는 데이터를 꺼내옵니다.
+
+  ## `@app.route('/memo', methods=['POST'])`
+
+  주의. `redirect 설정` : 비 로그인시 첫 페이지로 이동
+  ```
+    if not userId:
+        return redirect('/') # in local
+        return redirect('/memo') # in aws elb ec2
+  ```
+  
+  클라이언트에게 받은 JSON 데이터속 메모 데이터를 추출 후 DB에 저장.
+  ```
+    m = json.dumps(dict(request.json)).encode('utf-8')
+
+    rdb.rpush(f'user:{userId}:memos', m)
+  ```
+  해당하는 userId의 의 데이터에 새로운 메모를 list형태로 추가. (list요소는 JSON)
 
 
-## 네이버 로그인 API 호출
+## 네이버 Redirct URI 리스트
 
-수업 시간에 설명한대로 authorization code 를 얻어오는 동작은 클라이언트에서부터 시작하게 됩니다.
-
-그런데 코드를 보면 `index.html` 에서 해당 API 동작을 바로 시작하는 것이 아니라 `GET /login` 을 통해서 서버에게 해당 REST API 로 redirect 시켜달라고 하는 방식으로 브라우저가 API 를 호출합니다. 이는 Chrome 계열의 브라우저의 `CORS` 문제 때문에 그렇습니다.
-
-비록 서버가 redirect 해주는 방식을 사용하고는 있지만, 클라이언트인 브라우저가 그 API 를 직접 호출한다는 점은 동일합니다.
-
-## 로그인 혹은 가입 처리
-
-네이버 OAuth 과정을 마무리 한 뒤에 네이버의 profile API 를 통해 얻은 유저의 고유 식별 번호를 갖는 유저가 DB 에 없는 경우 새 유저로 취급하고 DB 에 해당 유저의 이름을 포함하는 레코드를 생성합니다.
-
-만일 같은 네이버 고유 식별 번호의 유저가 있다면 그냥 로그인 된 것으로 간주합니다.
-
-어떤 경우든 DB 에서 해당 유저의 정보를 얻어낼 수 있도록 `userId` 라는 `HTTP cookie` 를 설정합니다.
-
-
-# 과제 내용
-
-`memo.py` 의 내용을 채워서 메모장이 동작하게 하는 것이 과제의 목표입니다.
-
-## `def home()`
-
-`userId` 쿠키가 설정되어 있는 경우 DB 에서 해당 유저의 이름을 읽어와서 `index.html` template 에 반영하는 동작이 누락되어 있습니다.
-
-## Redirect URI 에 대응되는 함수 (예: `def onOAuthAuthorizationCodeRedirected()`)
-
-본인이 네이버 앱 등록시 설정한 Redirect URI 에 대응되는 주소의 handler 를 `memo.py` 에 구현해야됩니다. 현재 `memo.py` 에는 `memo.py` 가 8000 번 포트에 뜰 것이라고 가정하고 `http://localhost:8000/auth` 와 같은 형태로 네이버 앱 등록에 Redirect URI 가 지정된 것으로 가정해서 `def onOAuthAuthorizationCodeRedirected()` 에 `@app.route('/auth')` 라는 태깅이 되어있습니다. 만일 본인이 등록한 Redirect URI 와 이와 다르다면 `@app.route()` 을 적절히 수정해야 됩니다.
-
-그리고 현재 `def onOAuthAuthorizationCodeRedirected()` 의 내용은 비어있습니다. 코멘트로 표시된 대로 단계 1 ~ 4 까지를 채워 넣어야 합니다.
-
-## `def getMemos()`
-
-메모 목록을 DB 로부터 읽어오는 부분이 빠져있습니다. 현재 로그인한 유저의 메모들을 읽어올 수 있어야 합니다.
-
-## `def post_new_memo()`
-
-새 메모를 DB 에 저장하는 부분이 빠져있습니다. 현재 로그인한 유저의 메모로 저장되어야 합니다.
+* `http://localhost:8000/oauth2`
+* `http://3.35.219.88:8000/memo/oauth2` ec2: 60172216-1
+* `http://13.125.197.68:8000/memo/oauth2` ec2: 60172216-2
 
 
 # DB 사용
 
-DB 는 본인이 원하는 DB 중 어떤 것이라도 쓸 수 있습니다. (예: MySQL, MariaDB, Redis, MongoDB) DB 를 하나만 써도 되고 필요하다면 여러 DB 를 사용해도 무방합니다.
+DB는 AWS의 EC2중 60172216-db 인스턴스에 Docker를 설치하여 Redis image를 다운받아 container를 실행시켰습니다.
 
-단 DB 설치는 docker 를 통해서 이루어져야 합니다. Docker 에 대한 설명은 수업 시간 강의 내용을 참고해주세요.
+* `port` : `6379:6379`
+* `container name` : `memo_redis`
+* `version` : `lastest`
 
-# 평가 항목
+# 문제 해결
 
-* 네이버 OAuth 가 제대로 구현되었는가?
-* `GET /memo` 가 제대로 구현되었는가?
-* `POST /memo` 가 제대로 구현되었는가?
-* 유저를 바꿔서 사용하는 경우 사용자 구분이 잘 되는가?
+만일 elb주소를 통해 접근시 서버 에러 혹은 런타임 에러가 발생한다면
+DB용 EC2인 60172216-db 인스턴스를 실행시켜 다음 명령어를 실행해봅니다.
 
-# 제출물
+* `sudo docker ps -a` : 현재 실행 혹은 중지중인 container 확인
 
-본인 github repo 에 `memo_server` 라는 서브폴더를 만들어서 다음 파일들을 제출하세요.
-* 완성된 `memo.py`
-* 기본으로 주어진 `templates/index.html`
-* 실행 방법 및 코드 설명을 담고 있는 `readme.md` 파일
+만일 memo_redis 라는 redis conatiner가 중지중일시 해당 container를 재실행시켜줍니다.
 
-* `AWS` 상에 `ELB` 를 통해서 실제 배포된 실행 환경 (**이 부분은 11월 22일 강의 자료인 24 - AWS Loadbalancer.pptx 을 참고하시기 바랍니다.**)
-
-# 테스트용 서버
-
-본 git repo 의 `references/` 아래에는 테스트용 서버를 직접 띄워볼 수 있도록 모듈을 포함하고 있습니다. 해당 모듈은 text 로 된 python 파일이 아니라 parmor 를 통해서 난독화된 결과물을 담고 있습니다. 따라서 OS 별로 구분해서 실행해야 되는데, Windows, Linux, Intel CPU 사용 macOS 용으로 띄워볼 수 있습니다.
-
-해당 모듈은 `localhost` 에 있는 `redis` 와 `mongodb` 를 접속합니다. 따라서 본 모듈을 실행하기 위해서는 `docker` 를 통해서 redis 와 mongodb 를 먼저 실행하고 `Flask` app 을 실행하던 방식으로 모듈을 실행하면 됩니다. (먼저 위에 설명된 대로 `pip install -r requirements.txt` 를 실행하는 것을 잊지 마세요.)
-
-각 OS 별 디렉터리 안에 있는 `config.json` 안에 Naver 에 등록된 app 의 client id, client secret, redirect URI 를 지정할 수 있습니다. 그 파일의 내용을 수정하고 Flask app 을 띄우듯이 실행하면 됩니다. `config.json` 을 읽게 한 것은 테스트용 서버를 각 학생에 맞게 수정하기 위한 것이고, 제출하는 결과물은 이처럼 `config.json` 을 읽도록 하지 않아도 됩니다.
+* `sudo docker start memo_redis` : memo_redis 라는 이름을 가진 container를 실행시킵니다.

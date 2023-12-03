@@ -117,7 +117,7 @@ def onOAuthAuthorizationCodeRedirected():
         'name': user_name    
     }
 
-    #db저장 과정 필요 (미구현)
+    #db저장
     user_serialized_json = json.dumps(user).encode('utf-8')
     rdb.set(f'user:{user_id}', user_serialized_json)
 
