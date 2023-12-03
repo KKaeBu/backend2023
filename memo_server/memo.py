@@ -12,9 +12,9 @@ app = Flask(__name__)
 
 naver_client_id = 'UJn7he7LaQ7dbs6kmavb'
 naver_client_secret = 'RBHWVv5dkw'
-naver_redirect_uri = 'http://localhost:9140/oauth2'
+naver_redirect_uri = 'http://localhost:8000/oauth2'
 
-rdb = redis.Redis(host='localhost', port=16379, decode_responses=True)
+rdb = redis.Redis(host='3.37.153.114', port=6379, decode_responses=True)
 
 
 @app.route('/')
@@ -170,4 +170,4 @@ def post_new_memo():
 
 
 if __name__ == '__main__':
-    app.run('0.0.0.0', port=9140, debug=True)
+    app.run('0.0.0.0', port=8000, debug=True)

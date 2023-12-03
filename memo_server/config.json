@@ -1,5 +1,5 @@
 {
-  "naver_client_id": "bJQCzWl6qIu9i6IfVr10",
-  "naver_client_secret": "IdrdEiljNi",
-  "naver_redirect_uri": "http://localhost:8000/auth"
+  "naver_client_id": "UJn7he7LaQ7dbs6kmavb",
+  "naver_client_secret": "RBHWVv5dkw",
+  "naver_redirect_uri": "http://localhost:9140/oauth2"
 }
