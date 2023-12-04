@@ -59,7 +59,7 @@ http://60172216-lb-358060437.ap-northeast-2.elb.amazonaws.com/memo/
         # AWS의 대상 그룹 health check를 위한 URI
         # 항상 200을 반환해줍니다.
     
-        return make_response("Unhealth", HTTPStatus.OK)
+        return make_response("health check", HTTPStatus.OK)
 ```
 AWS의 대상 그룹 Health Checker에게 응답하기 위한 함수 이며,
 항상 200값을 반환하게 하여 서버의 상태가 정상임을 전달합니다.
