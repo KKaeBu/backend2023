@@ -52,6 +52,18 @@ http://60172216-lb-358060437.ap-northeast-2.elb.amazonaws.com/memo/
 쿠키를 통해 이전에 사용자의 방문 여부를 확인하고 DB에 사용자 데이터를 유무를 검색합니다.
 만일 있다면 DB에 저장된 사용자 이름으로 name 값을 지정합니다.
 
+## `@app.route('/health')`
+
+```
+    def health():
+        # AWS의 대상 그룹 health check를 위한 URI
+        # 항상 200을 반환해줍니다.
+    
+        return make_response("Unhealth", HTTPStatus.OK)
+```
+AWS의 대상 그룹 Health Checker에게 응답하기 위한 함수 이며,
+항상 200값을 반환하게 하여 서버의 상태가 정상임을 전달합니다.
+
 ## `@app.route('/oauth2')`
 
 사용된 Redirect URI는 다음과 같습니다.
