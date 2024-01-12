@@ -7,16 +7,16 @@ using namespace std;
 int sum = 0;
 
 void f() {
-    for (int i = 0; i < 1000; ++i) {
-        ++sum;
-    }
+  for (int i = 0; i < 1000; ++i) {
+    ++sum;
+  }
 }
 
 int main() {
-    thread t(f);
-    for (int i = 0; i < 1000; ++i) {
-        ++sum;
-    }
-    t.join();
-    cout << "Sum: " << sum << endl;
+  thread t(f);
+  for (int i = 0; i < 1000; ++i) {
+    ++sum;
+  }
+  t.join();
+  cout << "Sum: " << sum << endl;
 }

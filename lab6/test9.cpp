@@ -10,24 +10,24 @@ mutex m;
 mutex m2;
 
 void f() {
-    for (int i = 0; i < 10 * 1000 * 1000; ++i) {
-        m.lock();
-        m2.lock();
-        ++sum;
-        m.unlock();
-        m2.unlock();
-    }
+  for (int i = 0; i < 10 * 1000 * 1000; ++i) {
+    m.lock();
+    m2.lock();
+    ++sum;
+    m.unlock();
+    m2.unlock();
+  }
 }
 
 int main() {
-    thread t(f);
-    for (int i = 0; i < 10 * 1000 * 1000; ++i) {
-        m2.lock();
-        m.lock();
-        ++sum;
-        m2.unlock();
-        m.unlock();
-    }
-    t.join();
-    cout << "Sum: " << sum << endl;
+  thread t(f);
+  for (int i = 0; i < 10 * 1000 * 1000; ++i) {
+    m2.lock();
+    m.lock();
+    ++sum;
+    m2.unlock();
+    m.unlock();
+  }
+  t.join();
+  cout << "Sum: " << sum << endl;
 }
